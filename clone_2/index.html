@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoX | Anonymous Student Network</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Firebase v10+ Modular SDK (Compat for Babel standalone compatibility) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F1F5F9; color: #0F172A; selection: background-color: #BFDBFE; color: white; }
+        
+        /* Glassmorphism */
+        .glass-nav { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.8); }
+        
+        /* Animations */
+        .fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .scale-in { animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        .float { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+
+        /* Spinner */
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-left-color: #fff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Branding Gradient */
+        .text-gradient { background: linear-gradient(135deg, #3B82F6 0%, #0F172A 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        /*******************************************************
+         * FIREBASE INITIALIZATION (v10+ Modular SDK Style)
+         * 
+         * SECURITY NOTE: The service account provided is for SERVER-SIDE use only
+         * (Cloud Functions, Admin SDK). NEVER expose service account credentials
+         * in client-side code. This config uses the project_id from your service account.
+         * 
+         * To get your complete Web App config:
+         * 1. Go to Firebase Console: https://console.firebase.google.com/
+         * 2. Select project: askhelp-e9fe2
+         * 3. Click the gear icon > Project settings
+         * 4. Scroll to "Your apps" > Web app (</>) icon
+         * 5. Copy the config object and replace the values below
+         *******************************************************/
+        const firebaseConfig = {
+            apiKey: "AIzaSyD5CT158OWrFettKLN8DklFnwdo5TBW070",
+            authDomain: "askhelp-e9fe2.firebaseapp.com",
+            projectId: "askhelp-e9fe2",
+            storageBucket: "askhelp-e9fe2.firebasestorage.app",
+            messagingSenderId: "467930801136",
+            appId: "1:467930801136:web:9cd01ba4d589e1ea827335"
+        };
+
+        // Initialize Firebase using compat API (compatible with Babel standalone)
+        let app, auth, db;
+        try {
+            app = firebase.apps.length === 0 ? firebase.initializeApp(firebaseConfig) : firebase.app();
+            auth = firebase.auth();
+            db = firebase.firestore();
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            alert("Firebase initialization failed. Please check your configuration.");
+        }
+
+        /*******************************************************
+         * CONFIGURATION & UTILS
+         *******************************************************/
+        const ALLOWED_DOMAINS = ['.edu', '.ac.in', '.ac.uk', '.edu.au', 'university.edu'];
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const getRandomAlias = () => {
+            const adjectives = ['Cosmic', 'Silent', 'Brave', 'Nebula', 'Eager', 'Kind', 'Witty', 'Lucky', 'Hidden'];
+            const nouns = ['Panda', 'Tiger', 'Eagle', 'Dolphin', 'Owl', 'Fox', 'Bear', 'Hawk', 'Ghost'];
+            const num = Math.floor(Math.random() * 999);
+            return `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${num}`;
+        };
+
+        // XSS Prevention: Escape HTML entities
+        const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }; 
+
+        /*******************************************************
+         * FILE HANDLING UTILS
+         *******************************************************/
+        const MAX_SIZE_MB = 50;
+        const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+        const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+
+        const fileToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        };
+
+        const validateFile = (file) => {
+            if (!file) return { valid: true };
+            if (file.size > MAX_SIZE_BYTES) {
+                return { valid: false, error: `File too large. Max size is ${MAX_SIZE_MB}MB.` };
+            }
+            if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+                return { valid: false, error: "Only PDF files and Images (JPG, PNG, GIF) are allowed." };
+            }
+            return { valid: true };
+        };
+
+        const formatSize = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        /*******************************************************
+         * AI MODERATION SERVICE
+         * TODO: SECURITY - Migrate PERSPECTIVE_API_KEY to Firebase Cloud Function
+         * to prevent API key exposure in client-side code.
+         *******************************************************/
+        const PERSPECTIVE_API_KEY = 'AIzaSyD7OQjpFols1ErQthsiLEZfkFXDg63Ztbs';
+
+        const ModerationService = {
+            analyze: (text) => {
+                return new Promise(async (resolve) => {
+                    try {
+                        if (!text || text.trim().length === 0) return resolve({ score: 0, isToxic: false });
+                        // XSS Prevention: Sanitize input before sending to external API
+                        const sanitizedText = escapeHtml(text);
+                        const response = await fetch(
+                            `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${PERSPECTIVE_API_KEY}`,
+                            {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    comment: { text: sanitizedText, type: 'PLAIN_TEXT' },
+                                    requestedAttributes: { TOXICITY: {}, INSULT: {} }
+                                })
+                            }
+                        );
+                        if (!response.ok) throw new Error("API Error");
+                        const data = await response.json();
+                        const maxScore = Math.max(data.attributeScores.TOXICITY?.summaryScore?.value || 0, data.attributeScores.INSULT?.summaryScore?.value || 0);
+                        resolve({ score: maxScore, isToxic: maxScore > 0.6 });
+                    } catch (error) {
+                        const toxicWords = ['idiot', 'hate', 'stupid', 'kill', 'dumb', 'ugly'];
+                        let score = 0;
+                        toxicWords.forEach(word => { if (text.toLowerCase().includes(word)) score += 0.5; });
+                        resolve({ score: Math.min(score, 1), isToxic: score > 0.6 });
+                    }
+                });
+            }
+        };
+
+        /*******************************************************
+         * DATABASE SERVICE (Firestore v10+ Modular Style)
+         *******************************************************/
+        const DatabaseService = {
+            // Get posts for a specific college domain (used for initial load)
+            getPosts: async (collegeDomain) => {
+                try {
+                    const postsRef = db.collection('posts');
+                    const snapshot = await postsRef
+                        .where('college', '==', collegeDomain)
+                        .orderBy('timestamp', 'desc')
+                        .get();
+                    
+                    return snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                } catch (e) {
+                    console.error("DB Error (Get Posts):", e);
+                    return [];
+                }
+            },
+            
+            // Create a new post
+            createPost: async (postData) => {
+                const currentUser = auth.currentUser;
+                if (!currentUser) throw new Error("User not authenticated");
+                
+                // XSS Prevention: React will automatically escape HTML when rendering
+                // We store raw text, but validate it's not empty
+                if (!postData.title || !postData.title.trim()) {
+                    throw new Error("Title cannot be empty");
+                }
+                if (!postData.content || !postData.content.trim()) {
+                    throw new Error("Content cannot be empty");
+                }
+                
+                // Check file size limits (Firestore document limit is 1MB)
+                const attachmentsSize = (postData.attachments || []).reduce((sum, f) => sum + (f.base64?.length || 0), 0);
+                if (attachmentsSize > 1000000) { // ~1MB limit
+                    throw new Error("Total attachment size exceeds Firestore limit (1MB). Please reduce file sizes.");
+                }
+                
+                const newPost = {
+                    title: postData.title.trim(),
+                    content: postData.content.trim(),
+                    tag: postData.tag,
+                    attachments: postData.attachments || [],
+                    authorAlias: getRandomAlias(),
+                    authorUid: currentUser.uid,
+                    college: currentUser.email.substring(currentUser.email.lastIndexOf('@')),
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    upvotes: 0,
+                    upvotedBy: [],
+                    comments: []
+                };
+                
+                try {
+                    const docRef = await db.collection('posts').add(newPost);
+                    console.log("Post created successfully with ID:", docRef.id);
+                    // Return the post with a temporary timestamp (serverTimestamp will be set by Firestore)
+                    return { 
+                        id: docRef.id, 
+                        ...newPost, 
+                        timestamp: Date.now() // Temporary, will be replaced by serverTimestamp when read
+                    };
+                } catch (e) {
+                    console.error("DB Error (Create Post):", e);
+                    throw new Error("Failed to create post: " + (e.message || "Unknown error"));
+                }
+            },
+
+            // Delete a post
+            deletePost: async (postId, requestingUid) => {
+                try {
+                    const postRef = db.collection('posts').doc(postId);
+                    const postDoc = await postRef.get();
+                    
+                    if (!postDoc.exists) {
+                        throw new Error("Post not found.");
+                    }
+                    
+                    const postData = postDoc.data();
+                    if (postData.authorUid !== requestingUid) {
+                        console.warn(`Security Block: User ${requestingUid} tried to delete post owned by ${postData.authorUid}`);
+                        throw new Error("Access Denied: Only account that created this post can delete it.");
+                    }
+                    
+                    await postRef.delete();
+                    return true;
+                } catch (e) {
+                    console.error("DB Error (Delete):", e);
+                    throw e;
+                }
+            },
+            
+            // Add a comment to a post
+            addComment: async (postId, text, attachments) => {
+                const currentUser = auth.currentUser;
+                if (!currentUser) throw new Error("User not authenticated");
+                
+                try {
+                    const postRef = db.collection('posts').doc(postId);
+                    const postDoc = await postRef.get();
+                    
+                    if (!postDoc.exists) {
+                        return null;
+                    }
+                    
+                    const postData = postDoc.data();
+                    let commentAlias;
+                    
+                    if (currentUser.uid === postData.authorUid) {
+                        commentAlias = postData.authorAlias;
+                    } else {
+                        commentAlias = getRandomAlias();
+                    }
+                    
+                    // XSS Prevention: React will automatically escape HTML when rendering
+                    // We store raw text, but validate it's not empty
+                    if (!text || !text.trim()) {
+                        throw new Error("Comment cannot be empty");
+                    }
+                    
+                    const newComment = {
+                        id: generateId(),
+                        content: text.trim(),
+                        attachments: attachments || [],
+                        authorAlias: commentAlias,
+                        authorUid: currentUser.uid,
+                        timestamp: Date.now()
+                    };
+                    
+                    // Update post with new comment
+                    await postRef.update({
+                        comments: firebase.firestore.FieldValue.arrayUnion(newComment)
+                    });
+                    
+                    return newComment;
+                } catch (e) {
+                    console.error("DB Error (Add Comment):", e);
+                    throw new Error("Failed to add comment");
+                }
+            },
+            
+            // Toggle upvote on a post
+            toggleUpvote: async (postId) => {
+                const currentUser = auth.currentUser;
+                if (!currentUser) throw new Error("User not authenticated");
+                
+                try {
+                    const postRef = db.collection('posts').doc(postId);
+                    const postDoc = await postRef.get();
+                    
+                    if (!postDoc.exists) {
+                        return null;
+                    }
+                    
+                    const postData = postDoc.data();
+                    const upvotedBy = postData.upvotedBy || [];
+                    const hasUpvoted = upvotedBy.includes(currentUser.uid);
+                    
+                    if (hasUpvoted) {
+                        // Remove upvote
+                        await postRef.update({
+                            upvotes: firebase.firestore.FieldValue.increment(-1),
+                            upvotedBy: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+                        });
+                    } else {
+                        // Add upvote
+                        await postRef.update({
+                            upvotes: firebase.firestore.FieldValue.increment(1),
+                            upvotedBy: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+                        });
+                    }
+                    
+                    // Return updated post data
+                    const updatedDoc = await postRef.get();
+                    return {
+                        id: updatedDoc.id,
+                        ...updatedDoc.data()
+                    };
+                } catch (e) {
+                    console.error("DB Error (Upvote):", e);
+                    throw e;
+                }
+            },
+            
+            // Subscribe to real-time updates for posts
+            subscribeToPosts: (collegeDomain, callback) => {
+                if (!collegeDomain) {
+                    console.warn("No college domain provided for subscription");
+                    callback([]);
+                    return () => {};
+                }
+                
+                let unsubscribe = null;
+                
+                try {
+                    // Try with composite query (requires index)
+                    const postsRef = db.collection('posts')
+                        .where('college', '==', collegeDomain)
+                        .orderBy('timestamp', 'desc');
+                    
+                    unsubscribe = postsRef.onSnapshot((snapshot) => {
+                        const posts = snapshot.docs.map(doc => {
+                            const data = doc.data();
+                            return {
+                                id: doc.id,
+                                ...data,
+                                timestamp: data.timestamp?.toMillis?.() || data.timestamp || Date.now()
+                            };
+                        });
+                        console.log(`Loaded ${posts.length} posts for college: ${collegeDomain}`);
+                        callback(posts);
+                    }, (error) => {
+                        console.error("Error subscribing to posts (with index):", error);
+                        // Fallback: Try without orderBy if index doesn't exist
+                        if (error.code === 'failed-precondition' || error.code === 'unimplemented') {
+                            console.warn("Composite index missing, using fallback query. Create index at:", error.message);
+                            const fallbackRef = db.collection('posts')
+                                .where('college', '==', collegeDomain);
+                            
+                            // Unsubscribe from the failed query first
+                            if (unsubscribe) unsubscribe();
+                            
+                            unsubscribe = fallbackRef.onSnapshot((snapshot) => {
+                                const posts = snapshot.docs.map(doc => {
+                                    const data = doc.data();
+                                    return {
+                                        id: doc.id,
+                                        ...data,
+                                        timestamp: data.timestamp?.toMillis?.() || data.timestamp || Date.now()
+                                    };
+                                }).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                                console.log(`Loaded ${posts.length} posts (fallback) for college: ${collegeDomain}`);
+                                callback(posts);
+                            }, (fallbackError) => {
+                                console.error("Error in fallback query:", fallbackError);
+                                callback([]);
+                            });
+                        } else {
+                            callback([]);
+                        }
+                    });
+                    
+                    return () => {
+                        if (unsubscribe) unsubscribe();
+                    };
+                } catch (error) {
+                    console.error("Error setting up subscription:", error);
+                    callback([]);
+                    return () => {};
+                }
+            },
+            
+            // Subscribe to real-time updates for a single post
+            subscribeToPost: (postId, callback) => {
+                const postRef = db.collection('posts').doc(postId);
+                
+                return postRef.onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const postData = {
+                            id: doc.id,
+                            ...doc.data(),
+                            timestamp: doc.data().timestamp?.toMillis?.() || Date.now()
+                        };
+                        callback(postData);
+                    } else {
+                        callback(null);
+                    }
+                }, (error) => {
+                    console.error("Error subscribing to post:", error);
+                    callback(null);
+                });
+            }
+        };
+
+        /*******************************************************
+         * AUTH SERVICE (Firebase Authentication v10+)
+         *******************************************************/
+        const AuthService = {
+            // Sign up with email and password
+            signup: async (email, password) => {
+                const domain = email.substring(email.lastIndexOf('@'));
+                const isValidDomain = ALLOWED_DOMAINS.some(d => domain.endsWith(d));
+                if (!isValidDomain) {
+                    throw new Error("Invalid college domain (.edu, .ac.in, etc).");
+                }
+                
+                try {
+                    const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    const user = userCredential.user;
+                    
+                    // Store college domain in user profile (optional, can be extracted from email)
+                    return {
+                        uid: user.uid,
+                        email: user.email,
+                        college: domain
+                    };
+                } catch (error) {
+                    console.error("Signup error:", error);
+                    let errorMessage = "Failed to create account.";
+                    if (error.code === 'auth/email-already-in-use') {
+                        errorMessage = "Email already in use. Please log in instead.";
+                    } else if (error.code === 'auth/weak-password') {
+                        errorMessage = "Password is too weak. Please use at least 6 characters.";
+                    } else if (error.code === 'auth/invalid-email') {
+                        errorMessage = "Invalid email address.";
+                    } else if (error.code === 'auth/operation-not-allowed') {
+                        errorMessage = "Email/Password authentication is not enabled. Please enable it in Firebase Console.";
+                    } else if (error.message) {
+                        errorMessage = error.message;
+                    }
+                    throw new Error(errorMessage);
+                }
+            },
+            
+            // Sign in with email and password
+            login: async (email, password) => {
+                const domain = email.substring(email.lastIndexOf('@'));
+                const isValidDomain = ALLOWED_DOMAINS.some(d => domain.endsWith(d));
+                if (!isValidDomain) {
+                    throw new Error("Invalid college domain (.edu, .ac.in, etc).");
+                }
+                
+                try {
+                    const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+                    const user = userCredential.user;
+                    
+                    return {
+                        uid: user.uid,
+                        email: user.email,
+                        college: domain
+                    };
+                } catch (error) {
+                    console.error("Login error:", error);
+                    let errorMessage = "Failed to sign in.";
+                    if (error.code === 'auth/user-not-found') {
+                        errorMessage = "User not found. Please sign up.";
+                    } else if (error.code === 'auth/wrong-password') {
+                        errorMessage = "Incorrect password.";
+                    } else if (error.code === 'auth/invalid-email') {
+                        errorMessage = "Invalid email address.";
+                    } else if (error.code === 'auth/operation-not-allowed') {
+                        errorMessage = "Email/Password authentication is not enabled. Please enable it in Firebase Console.";
+                    } else if (error.code === 'auth/invalid-credential') {
+                        errorMessage = "Invalid email or password.";
+                    } else if (error.message) {
+                        errorMessage = error.message;
+                    }
+                    throw new Error(errorMessage);
+                }
+            },
+            
+            // Sign out
+            logout: async () => {
+                try {
+                    await firebase.auth().signOut();
+                    window.location.reload();
+                } catch (error) {
+                    console.error("Logout error:", error);
+                    window.location.reload();
+                }
+            },
+            
+            // Get current authenticated user
+            getCurrentUser: () => {
+                const user = auth.currentUser;
+                if (!user) return null;
+                
+                const domain = user.email.substring(user.email.lastIndexOf('@'));
+                return {
+                    uid: user.uid,
+                    email: user.email,
+                    college: domain
+                };
+            },
+            
+            // Listen to auth state changes
+            onAuthStateChanged: (callback) => {
+                return auth.onAuthStateChanged((firebaseUser) => {
+                    if (firebaseUser) {
+                        const domain = firebaseUser.email.substring(firebaseUser.email.lastIndexOf('@'));
+                        callback({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            college: domain
+                        });
+                    } else {
+                        callback(null);
+                    }
+                });
+            }
+        };
+
+        const ENCOURAGEMENT_MESSAGES = [
+            "Hey there! Let's keep this space safe and supportive for everyone.",
+            "We noticed some harsh language. Can we rephrase that to be more constructive?",
+            "Our goal is a helpful community. This comment might be hurtful—let's try again!",
+            "Let's keep vibe positive. Your feedback is valuable, but tone matters!",
+            "We believe in respectful dialogue. Can you try expressing this differently?",
+            "Building a great community requires kindness. Let's try a friendlier approach."
+        ];
+        const getRandomEncouragement = () => ENCOURAGEMENT_MESSAGES[Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)];
+
+        const { useState, useEffect, useContext, createContext } = React;
+        const AppContext = createContext();
+
+        // --- COMPONENTS ---
+
+        const LandingPage = ({ onGoToLogin, onGoToSignup }) => {
+            return (
+                <div className="min-h-screen relative overflow-hidden flex flex-col bg-slate-50">
+                    {/* Background Blobs */}
+                    <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-400 rounded-full mix-blend-multiply filter blur-[120px] opacity-10 animate-pulse"></div>
+                    <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-900 rounded-full mix-blend-multiply filter blur-[120px] opacity-10 animate-pulse"></div>
+                    <div className="absolute top-[40%] right-[30%] w-[400px] h-[400px] bg-blue-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-10 float"></div>
+
+                    <nav className="relative z-10 w-full px-6 md:px-12 py-6 glass-nav flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-500 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                                <i className="ph ph-mask-happy text-3xl"></i>
+                            </div>
+                            <span className="font-black font-extrabold text-3xl md:text-4xl tracking-tight text-slate-900">Echo<span className="font-black font-extrabold text-slate-900 ml-1">X</span></span>
+                        </div>
+                        <div className="flex gap-3 md:gap-4">
+                            <button onClick={onGoToLogin} className="font-bold text-slate-600 hover:text-blue-600 transition-colors text-base md:text-lg">Log In</button>
+                            <button onClick={onGoToSignup} className="bg-blue-600 text-white font-bold px-6 py-3 rounded-2xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 text-base md:text-lg">Sign Up</button>
+                        </div>
+                    </nav>
+
+                    <main className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-16 w-full max-w-7xl mx-auto">
+                        <div className="bg-blue-50 border border-blue-100 text-blue-700 px-6 py-2 rounded-full text-sm md:text-base font-bold mb-8 animate-bounce inline-block shadow-sm">
+                            🚀 The anonymous network for your campus
+                        </div>
+                        <h1 className="text-4xl md:text-7xl font-black leading-tight mb-8 tracking-tight">
+                            Share doubts <br className="hidden md:block"/> <span className="text-gradient">without fear</span>
+                        </h1>
+                        <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed">
+                            A privacy-first, college-exclusive platform to discuss exams, placements, and life. 
+                            Powered by AI moderation to ensure a safe space.
+                        </p>
+                        <div className="flex flex-col md:flex-row gap-4 w-full justify-center">
+                            <button onClick={onGoToSignup} className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-blue-900 text-white font-black py-5 px-10 rounded-3xl hover:shadow-2xl hover:shadow-blue-500/40 transition-all transform hover:-translate-y-1 text-xl md:text-2xl tracking-wide">
+                                Get Started Free
+                            </button>
+                            <button onClick={onGoToLogin} className="w-full md:w-auto bg-white text-slate-700 font-bold py-5 px-10 rounded-3xl border-2 border-slate-200 hover:bg-slate-50 hover:border-blue-300 transition-all text-xl md:text-2xl">
+                                I already have an account
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mt-16 w-full text-left">
+                            <FeatureCard icon="ph-shield-warning" title="AI Moderation" desc="Powered by Perspective API to track toxic behavior and ensure a respectful, safe community." />
+                            <FeatureCard icon="ph-file-pdf" title="Attach Files" desc="Share PDFs and images up to 50MB securely." />
+                            <FeatureCard icon="ph-shield-check" title="100% Anonymous" desc="Your identity is hidden by default. We generate a random alias for every interaction." />
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const FeatureCard = ({ icon, title, desc }) => (
+            <div className="glass-card p-8 md:p-10 rounded-3xl border border-white/50 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 flex flex-col items-center text-center">
+                <div className="w-20 h-20 md:w-24 md:h-24 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center text-3xl md:text-4xl mb-6 shadow-sm">
+                    <i className={`ph ${icon}`}></i>
+                </div>
+                <h3 className="text-xl md:text-2xl font-black mb-4">{title}</h3>
+                <p className="text-slate-500 leading-relaxed text-base md:text-lg">{desc}</p>
+            </div>
+        );
+
+        const AuthScreen = ({ initialMode = 'login', onSuccess, onBack, onShowToast }) => {
+            const [mode, setMode] = useState(initialMode);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+                try {
+                    if (mode === 'signup') {
+                        if (password !== confirmPassword) throw new Error("Passwords do not match.");
+                        if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+                        
+                        await AuthService.signup(email, password);
+                        
+                        onShowToast("Account created! Please log in.");
+                        setEmail(''); 
+                        setPassword(''); 
+                        setConfirmPassword('');
+                        setMode('login'); 
+                        
+                    } else {
+                        await AuthService.login(email, password);
+                        onSuccess(); 
+                    }
+                } catch (err) { 
+                    setError(err.message); 
+                } finally { 
+                    setLoading(false); 
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden bg-slate-50">
+                    {/* Background Blobs */}
+                    <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-400 rounded-full mix-blend-multiply filter blur-[120px] opacity-20 animate-pulse"></div>
+                    <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-900 rounded-full mix-blend-multiply filter blur-[120px] opacity-10 animate-pulse"></div>
+                    
+                    <div className="glass-card w-full max-w-md rounded-[2rem] md:rounded-3xl p-8 md:p-12 relative z-10 fade-in-up">
+                        <div className="text-center mb-8">
+                            {onBack && (
+                                <button onClick={onBack} className="absolute top-6 left-6 text-slate-400 hover:text-blue-600 transition-colors">
+                                    <i className="ph ph-house text-2xl md:text-3xl"></i>
+                                </button>
+                            )}
+                            <div className="w-24 h-24 md:w-28 md:h-28 bg-gradient-to-tr from-blue-500 to-blue-900 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/30">
+                                <i className="ph ph-mask-happy text-3xl md:text-4xl text-white"></i>
+                            </div>
+                            <h2 className="text-3xl md:text-4xl font-black mb-3">{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
+                            <p className="text-slate-500 font-medium text-base md:text-lg">Join anonymous student network.</p>
+                        </div>
+                        {error && <div className="mb-6 bg-red-50 text-red-600 px-6 py-4 rounded-2xl text-sm md:text-base font-semibold flex items-center gap-2 border border-red-100 shadow-sm"><i className="ph ph-warning-circle text-2xl md:text-3xl"></i> {error}</div>}
+                        <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+                            <div className="space-y-2"><label className="text-sm font-bold text-slate-400 uppercase tracking-wider pl-1">Email</label><div className="relative group"><i className="ph ph-envelope absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors text-xl md:text-2xl"></i><input type="email" required placeholder="student@university.edu" className="w-full pl-14 pr-4 py-4 bg-white/50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-base md:text-lg" value={email} onChange={e => setEmail(e.target.value)} /></div></div>
+                            <div className="space-y-2"><label className="text-sm font-bold text-slate-400 uppercase tracking-wider pl-1">Password</label><div className="relative group"><i className="ph ph-lock-key absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors text-xl md:text-2xl"></i><input type="password" required placeholder="••••" className="w-full pl-14 pr-4 py-4 bg-white/50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-base md:text-lg" value={password} onChange={e => setPassword(e.target.value)} /></div></div>
+                            {mode === 'signup' && <div className="space-y-2 fade-in"><label className="text-sm font-bold text-slate-400 uppercase tracking-wider pl-1">Confirm Password</label><div className="relative group"><i className="ph ph-lock-key absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors text-xl md:text-2xl"></i><input type="password" required placeholder="••••" className="w-full pl-14 pr-4 py-4 bg-white/50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-base md:text-lg" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></div></div>}
+                            <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-900 text-white font-black py-4 rounded-2xl hover:shadow-2xl hover:shadow-blue-500/40 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center mt-2 text-lg md:text-xl">
+                                {loading ? <div className="spinner"></div> : (mode === 'login' ? 'Sign In' : 'Create Account')}
+                            </button>
+                        </form>
+                        <div className="mt-8 text-center border-t border-slate-200/50 pt-6"><button onClick={() => {setMode(prev=>prev==='login'?'signup':'login'); setError('');}} className="text-base md:text-lg font-bold text-slate-600 hover:text-blue-600 transition-colors">{mode === 'login' ? "New here? Create an account" : "Already have an account? Log in"}</button></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Navbar = ({ setView, currentView }) => {
+            // SAFETY FIX: Use optional chaining or default props to prevent crash if context is missing (landing page)
+            const { user } = useContext(AppContext) || { user: null, showToast: () => {} };
+            
+            const navItem = (view, label, icon) => {
+                const isActive = currentView === view;
+                const bgClass = isActive 
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 scale-105' 
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900';
+                
+                return (
+                    <button onClick={() => setView(view)} className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-2xl text-sm md:text-base font-bold transition-all duration-300 ${bgClass}`}>
+                        <i className={`ph ph-${icon} text-lg md:text-xl ${isActive ? 'text-white' : ''}`}></i>
+                        <span className="hidden md:inline">{label}</span>
+                    </button>
+                );
+            };
+            
+            return (
+                <nav className="sticky top-0 z-50 glass-nav w-full px-4 md:px-8 py-4 transition-all duration-300">
+                    <div className="w-full md:w-4xl mx-auto flex justify-between items-center">
+                        <div className="flex items-center gap-3 cursor-pointer group md:hidden" onClick={() => setView('feed')}>
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                                <i className="ph ph-mask-happy text-xl"></i>
+                            </div>
+                            <span className="font-black font-extrabold text-xl tracking-tight text-slate-900">Echo<span className="font-black font-extrabold text-slate-900 ml-1">X</span></span>
+                        </div>
+                        
+                        <div className="hidden md:flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform cursor-pointer" onClick={() => setView('feed')}>
+                                <i className="ph ph-mask-happy text-xl"></i>
+                            </div>
+                            <span className="font-black font-extrabold text-xl tracking-tight text-slate-900 cursor-pointer group-hover:text-blue-600 transition-colors">Echo<span className="font-black font-extrabold text-slate-900 ml-1">X</span></span>
+                        </div>
+
+                        <div className="hidden md:flex gap-2 bg-slate-100/50 p-2 rounded-3xl backdrop-blur-sm">
+                            {navItem('feed', 'Feed', 'house')}
+                            {navItem('create', 'Post', 'pencil-simple')}
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            {/* FIX: Conditionally render user email only if logged in */}
+                            {user && user.email && (
+                                <div className="hidden md:block px-4 py-1.5 bg-white/50 rounded-lg border border-slate-200 text-sm md:text-xs font-semibold text-slate-500 truncate max-w-[120px] md:max-w-[150px]">
+                                    {user.email}
+                                </div>
+                            )}
+                            <button onClick={AuthService.logout} className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors flex items-center justify-center" title="Logout">
+                                <i className="ph ph-sign-out text-xl"></i>
+                            </button>
+                        </div>
+                    </div>
+                </nav>
+            );
+        };
+
+        const CreatePost = ({ setView }) => {
+            const [title, setTitle] = useState('');
+            const [content, setContent] = useState('');
+            const [tag, setTag] = useState('General');
+            const [files, setFiles] = useState([]);
+            const [error, setError] = useState(null);
+            const [warning, setWarning] = useState(null);
+            const [analyzing, setAnalyzing] = useState(false);
+            const [convertingFiles, setConvertingFiles] = useState(false);
+            const { user, showToast } = useContext(AppContext) || { user: null, showToast: () => {} };
+
+            const handleFileChange = async (e) => {
+                const selectedFiles = Array.from(e.target.files);
+                if (selectedFiles.length === 0) return;
+                for (let file of selectedFiles) {
+                    const validation = validateFile(file);
+                    if (!validation.valid) {
+                        setError(validation.error);
+                        e.target.value = ''; 
+                        return;
+                    }
+                }
+                setError(null);
+                setConvertingFiles(true);
+                const processedFiles = await Promise.all(selectedFiles.map(async (f) => {
+                    const base64 = await fileToBase64(f);
+                    return { name: f.name, type: f.type, size: f.size, base64: base64 };
+                }));
+                setFiles([...files, ...processedFiles]);
+                setConvertingFiles(false);
+            };
+
+            const removeFile = (index) => {
+                const newFiles = [...files];
+                newFiles.splice(index, 1);
+                setFiles(newFiles);
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setAnalyzing(true);
+                setWarning(null);
+                const analysis = await ModerationService.analyze(title + content);
+                setAnalyzing(false);
+                if (analysis.isToxic) {
+                    setWarning({ message: getRandomEncouragement() });
+                } else {
+                    try {
+                        await DatabaseService.createPost({ title, content, tag, attachments: files });
+                        showToast('Posted successfully!');
+                        setTitle(''); setContent(''); setFiles([]); setTag('General');
+                        setView('feed');
+                    } catch (err) {
+                        setError({ message: err.message });
+                    }
+                }
+            };
+
+            return (
+                <div className="w-full md:w-[90%] max-w-3xl mx-auto p-4 fade-in-up pb-32">
+                    <div className="flex flex-col md:flex-row items-center justify-between mb-6">
+                        <h2 className="text-2xl md:text-3xl font-black mb-0 flex items-center gap-3">
+                            <i className="ph ph-pencil-simple-slash text-blue-600 text-3xl"></i> 
+                            <span className="hidden md:inline">Create Post</span>
+                        </h2>
+                        <button onClick={() => setView('feed')} className="text-slate-400 hover:text-blue-600 transition-colors">
+                            <i className="ph ph-x text-2xl"></i>
+                        </button>
+                    </div>
+                    <div className="glass-card p-6 md:p-8 rounded-3xl shadow-sm border border-white/50">
+                        {warning && <div className="mb-6 bg-blue-50 border border-blue-100 text-blue-800 px-6 py-4 rounded-2xl text-sm md:text-base font-semibold flex gap-4 items-start scale-in shadow-sm"><i className="ph ph-heart text-2xl md:text-3xl text-blue-600 mt-0.5"></i><p className="font-bold text-sm md:text-base leading-relaxed">{warning.message}</p></div>}
+                        {error && <div className="mb-6 bg-red-50 border border-red-100 text-red-600 px-6 py-4 rounded-2xl text-sm md:text-base font-semibold flex gap-4 items-start scale-in shadow-sm"><i className="ph ph-warning-circle text-2xl md:text-3xl text-red-600 mt-0.5"></i><p className="font-bold text-sm md:text-base leading-relaxed">{error.message}</p></div>}
+                        
+                        <form onSubmit={handleSubmit} className="space-y-5 md:space-y-6">
+                            <div className="space-y-2"><label className="text-sm font-bold text-slate-400 uppercase tracking-wider pl-1">Section</label><div className="relative"><select value={tag} onChange={(e) => setTag(e.target.value)} className="w-full bg-white/50 border border-slate-200 rounded-2xl px-5 py-4 appearance-none focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold transition-all cursor-pointer hover:bg-white"><option>General</option><option>Help</option><option>Academics</option><option>Exams</option><option>Placements</option></select><i className="ph ph-caret-down absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xl md:text-2xl"></i></div></div>
+                            <input type="text" placeholder="Topic Title..." className="w-full bg-white/50 border border-slate-200 rounded-2xl px-6 py-4 text-lg md:text-xl font-semibold focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 placeholder:text-slate-400" value={title} onChange={e => setTitle(e.target.value)} />
+                            <textarea placeholder="Share your thoughts anonymously..." className="w-full bg-white/50 border border-slate-200 rounded-2xl px-6 py-4 min-h-[160px] focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 placeholder:text-slate-400 resize-none" value={content} onChange={e => setContent(e.target.value)} />
+                            
+                            {/* FILE UPLOAD SECTION */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-400 uppercase tracking-wider pl-1">Attachments (Max {MAX_SIZE_MB}MB, Images & PDFs only)</label>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex-1 cursor-pointer bg-white/50 border-2 border-dashed border-blue-200 rounded-2xl px-6 py-4 hover:bg-blue-50 hover:border-blue-400 transition-all text-center">
+                                        <i className="ph ph-paperclip text-2xl text-blue-600 mb-2 block"></i>
+                                        <span className="text-sm md:text-base font-bold text-slate-600">{convertingFiles ? 'Converting files...' : 'Click to add files'}</span>
+                                        <input type="file" multiple onChange={handleFileChange} accept="image/*,.pdf" className="hidden" />
+                                    </label>
+                                </div>
+                                
+                                {files.length > 0 && (
+                                    <div className="bg-white/50 border border-slate-200 rounded-2xl p-4 flex flex-wrap gap-3">
+                                        {files.map((file, idx) => (
+                                            <div key={idx} className="flex items-center bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm md:text-base font-bold shadow-sm">
+                                                <i className={`ph ${file.type.includes('pdf') ? 'ph-file-pdf text-red-500' : 'ph-image text-blue-500'} mr-2 text-xl`}></i>
+                                                <span className="truncate max-w-[150px] md:max-w-[200px]">{file.name}</span>
+                                                <span className="text-slate-400 font-normal text-xs md:text-sm">({formatSize(file.size)})</span>
+                                                <button type="button" onClick={(e) => { e.stopPropagation(); removeFile(idx); }} className="text-slate-400 hover:text-red-500 ml-2"><i className="ph ph-x-circle text-xl md:text-2xl"></i></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <button type="submit" disabled={analyzing || !title || !content} className="w-full bg-gradient-to-r from-blue-600 to-blue-900 text-white font-black py-4 md:py-5 rounded-2xl hover:shadow-2xl hover:shadow-blue-500/40 transition-all disabled:opacity-50 flex justify-center items-center tracking-wide text-base md:text-lg">
+                                {analyzing ? <span className="flex items-center gap-3"><div className="spinner"></div> Analyzing...</span> : 'Post Anonymously'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const Feed = ({ setView, setSelectedPost, refreshFeed }) => {
+            const { user, showToast } = useContext(AppContext) || { user: null, showToast: () => {} };
+            const [posts, setPosts] = useState([]);
+            const [filter, setFilter] = useState('All');
+            const [deletingId, setDeletingId] = useState(null);
+
+            // Real-time updates using onSnapshot
+            useEffect(() => {
+                if (!user?.college) {
+                    console.log("Feed: No user college domain, skipping subscription");
+                    return;
+                }
+                
+                console.log("Feed: Setting up subscription for college:", user.college);
+                const unsubscribe = DatabaseService.subscribeToPosts(user.college, (updatedPosts) => {
+                    console.log("Feed: Received posts update:", updatedPosts.length, "posts");
+                    setPosts(updatedPosts);
+                });
+                
+                return () => {
+                    console.log("Feed: Cleaning up subscription");
+                    if (unsubscribe) unsubscribe();
+                };
+            }, [user]);
+
+            const handleDelete = async (postId) => {
+                const post = posts.find(p => p.id === postId);
+                if (!post || !user || post.authorUid !== user.uid) {
+                    alert("Access Denied: Only account that created this post can delete it.");
+                    return;
+                }
+                if(!confirm("Are you sure you want to delete this post? This cannot be undone.")) return;
+
+                setDeletingId(postId);
+                try {
+                    await DatabaseService.deletePost(postId, user.uid);
+                    showToast("Post deleted successfully.");
+                } catch (err) {
+                    alert(err.message);
+                } finally {
+                    setDeletingId(null);
+                }
+            };
+
+            const filteredPosts = filter === 'All' ? posts : posts.filter(p => p.tag === filter);
+
+            return (
+                <div className="w-full md:w-[95%] mx-auto p-4 fade-in-up">
+                    <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar mb-2">
+                        {['All', 'General', 'Help', 'Academics', 'Exams', 'Placements'].map(t => (
+                            <button key={t} onClick={() => setFilter(t)} className={`px-5 py-2.5 md:px-6 rounded-full text-sm md:text-base font-bold whitespace-nowrap transition-all duration-300 ${filter === t ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105' : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300'}`}>
+                                {t === 'Help' && <i className="ph ph-question mr-1"></i>}
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+
+                    {filteredPosts.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center fade-in-up glass-card rounded-3xl border border-white/50 p-8">
+                            <i className="ph ph-ghost text-6xl md:text-7xl text-slate-200 mb-6"></i>
+                            <h3 className="text-xl md:text-2xl font-black mb-4">No queries right now</h3>
+                            <button onClick={() => setView('create')} className="text-blue-600 font-bold text-base md:text-lg hover:text-blue-700 hover:underline transition-all">
+                                Click here to make a post
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-5 md:space-y-6">
+                            {filteredPosts.map(post => (
+                                <div key={post.id} onClick={() => { setSelectedPost(post); setView('detail'); }} className={`group bg-white rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 border border-slate-100 transition-all duration-300 cursor-pointer relative overflow-hidden ${deletingId === post.id ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+                                    {/* Subtle Background */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600/0 to-blue-900/0 group-hover:from-blue-600/5 group-hover:to-blue-900/5 transition-all duration-500 pointer-events-none"></div>
+                                    
+                                    <div className="flex justify-between items-start mb-4 md:mb-6 relative z-10">
+                                        <span className="text-xs md:text-sm font-black uppercase bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg tracking-wider">
+                                            {post.tag === 'Help' && <i className="ph ph-question mr-1"></i>}
+                                            {post.tag}
+                                        </span>
+                                        <div className="flex items-center gap-2 md:gap-3">
+                                            <span className="text-xs md:text-sm font-medium text-slate-400">{new Date(post.timestamp).toLocaleDateString()}</span>
+                                            {/* FIX: Explicitly check existence of attachments */}
+                                            {post.attachments && post.attachments.length > 0 && <i className="ph ph-paperclip text-blue-600"></i>}
+                                            {user && user.uid === post.authorUid && (
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }} className="text-slate-300 hover:text-red-500 p-2 rounded-xl hover:bg-red-50 transition-colors" title="Delete Post"><i className="ph ph-trash text-lg md:text-xl"></i></button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <h3 className="font-bold text-xl md:text-2xl text-slate-900 mb-2 md:mb-3 leading-tight group-hover:text-blue-600 transition-colors">{post.title}</h3>
+                                    <p className="text-slate-500 font-medium leading-relaxed mb-4 md:mb-6 line-clamp-3 text-sm md:text-base">{post.content}</p>
+                                    
+                                    <div className="flex justify-between items-center border-t border-slate-50 pt-4 relative z-10">
+                                        <div className="flex gap-3 md:gap-4">
+                                            <span className="flex items-center gap-1.5 text-xs md:text-sm font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                                                <i className="ph ph-heart text-rose-400"></i> {post.upvotes}
+                                            </span>
+                                            <span className="flex items-center gap-1.5 text-xs md:text-sm font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                                                <i className="ph ph-chat-circle text-blue-400"></i> {post.comments?.length || 0}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 md:gap-3 text-xs md:text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
+                                            <i className="ph ph-mask-happy"></i> {post.authorAlias}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const PostDetail = ({ post, onBack, onUpdate }) => {
+            const { user } = useContext(AppContext) || { user: null };
+            const [comment, setComment] = useState('');
+            const [files, setFiles] = useState([]);
+            const [submitting, setSubmitting] = useState(false);
+            const [commentError, setCommentError] = useState(null);
+            const [convertingFiles, setConvertingFiles] = useState(false);
+            const [currentPost, setCurrentPost] = useState(post);
+            
+            // Real-time updates for the post
+            useEffect(() => {
+                if (!post?.id) return;
+                
+                const unsubscribe = DatabaseService.subscribeToPost(post.id, (updatedPost) => {
+                    if (updatedPost) {
+                        setCurrentPost(updatedPost);
+                    }
+                });
+                
+                return () => {
+                    if (unsubscribe) unsubscribe();
+                };
+            }, [post.id]); 
+
+            const handleFileChange = async (e) => {
+                const selectedFiles = Array.from(e.target.files);
+                if (selectedFiles.length === 0) return;
+                for (let file of selectedFiles) {
+                    const validation = validateFile(file);
+                    if (!validation.valid) { alert(validation.error); e.target.value = ''; return; }
+                }
+                setConvertingFiles(true);
+                const processedFiles = await Promise.all(selectedFiles.map(async (f) => {
+                    const base64 = await fileToBase64(f);
+                    return { name: f.name, type: f.type, size: f.size, base64: base64 };
+                }));
+                setFiles([...files, ...processedFiles]);
+                setConvertingFiles(false);
+            };
+
+            const removeFile = (index) => {
+                const newFiles = [...files];
+                newFiles.splice(index, 1);
+                setFiles(newFiles);
+            };
+
+            const handleComment = async (e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                setCommentError(null);
+                const analysis = await ModerationService.analyze(comment);
+                if (analysis.isToxic) {
+                    setCommentError(getRandomEncouragement());
+                    setSubmitting(false);
+                    return;
+                }
+                try {
+                    await DatabaseService.addComment(post.id, comment, files);
+                    setComment(''); 
+                    setFiles([]);
+                } catch (err) {
+                    setCommentError(err.message);
+                } finally {
+                    setSubmitting(false);
+                }
+            };
+
+            const handleUpvote = async (e) => {
+                e.stopPropagation();
+                try {
+                    await DatabaseService.toggleUpvote(post.id);
+                    // Real-time update will handle the UI update via onSnapshot
+                } catch (err) {
+                    console.error("Error toggling upvote:", err);
+                }
+            };
+            
+            const handleDelete = async () => {
+                if (!user || user.uid !== currentPost.authorUid) {
+                    alert("Access Denied: Only account that created this post can delete it.");
+                    return;
+                }
+                if(confirm("Delete this post?")) {
+                    try {
+                        await DatabaseService.deletePost(post.id, user.uid);
+                        onBack();
+                    } catch (err) {
+                        alert(err.message);
+                    }
+                }
+            };
+
+            return (
+                <div className="fade-in-up pb-24">
+                    <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-400 hover:text-blue-600 font-bold text-sm md:text-base transition-colors">
+                        <i className="ph ph-arrow-left text-xl md:text-2xl"></i> Back to Feed
+                    </button>
+                    <div className="glass-card p-6 md:p-8 rounded-3xl shadow-xl shadow-blue-200/40 mb-8 relative">
+                        <div className="flex justify-between items-start mb-6">
+                            <span className="text-xs md:text-sm font-black uppercase bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg tracking-wider">
+                                {currentPost.tag === 'Help' && <i className="ph ph-question mr-1"></i>}
+                                {currentPost.tag}
+                            </span>
+                            {user && user.uid === currentPost.authorUid && (
+                                <button onClick={handleDelete} className="flex items-center gap-1.5 text-slate-400 hover:text-red-500 font-bold text-xs md:text-sm uppercase transition-colors px-3 py-1.5 rounded-xl hover:bg-red-50">
+                                    <i className="ph ph-trash text-lg md:text-xl"></i> Delete
+                                </button>
+                            )}
+                        </div>
+                        <h1 className="text-2xl md:text-4xl font-black mb-6 md:mb-8 leading-tight">{currentPost.title}</h1>
+                        <p className="text-slate-600 font-medium leading-8 whitespace-pre-wrap text-base md:text-xl mb-8">{currentPost.content}</p>
+                        
+                        {/* ATTACHMENTS */}
+                        {currentPost.attachments && currentPost.attachments.length > 0 && (
+                            <div className="mb-8 p-4 md:p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <h4 className="text-sm md:text-base font-bold text-slate-500 uppercase">Attachments</h4>
+                                    <span className="flex items-center gap-2 text-xs md:text-sm font-bold text-slate-400">({currentPost.attachments.length} files)</span>
+                                </div>
+                                <div className="flex flex-wrap gap-3 md:gap-4">
+                                    {currentPost.attachments.map((file, idx) => (
+                                        <div key={idx} className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 hover:border-blue-300 transition-colors">
+                                            <i className={`ph ${file.type.includes('pdf') ? 'ph-file-pdf text-red-500' : 'ph-image text-blue-500'} mr-2 text-lg md:text-xl`}></i>
+                                            <span className="text-sm md:text-base font-bold text-slate-700 truncate max-w-[150px] md:max-w-[250px]">{file.name}</span>
+                                            <a href={file.base64} download={file.name} className="ml-3 text-blue-600 text-sm md:text-base font-bold hover:underline flex items-center gap-1">
+                                                <i className="ph ph-download-simple text-lg md:text-xl"></i>
+                                            </a>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <button onClick={handleUpvote} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${(currentPost.upvotedBy || []).includes(user?.uid) ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-white/50 text-slate-500 border border-slate-200 hover:bg-slate-100'}`}>
+                            <i className={`ph ${(currentPost.upvotedBy || []).includes(user?.uid) ? 'ph-check-circle' : 'ph-arrow-fat-up'} text-xl md:text-2xl`}></i> 
+                            {currentPost.upvotes || 0} Upvotes
+                        </button>
+                    </div>
+                    
+                    {/* COMMENTS */}
+                    <div className="w-full md:w-[95%] max-w-3xl mx-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-2xl md:text-3xl font-black">Discussion ({currentPost.comments?.length || 0})</h3>
+                        </div>
+                        {commentError && <div className="mb-4 bg-blue-50 border border-blue-100 text-blue-800 px-4 md:px-6 py-3 md:py-4 rounded-2xl text-sm md:text-base font-semibold flex items-center gap-3 scale-in shadow-sm"><i className="ph ph-heart text-xl md:text-2xl text-blue-600"></i>{commentError}</div>}
+                        
+                        <form onSubmit={handleComment} className="glass-card p-4 md:p-6 rounded-2xl shadow-sm border border-white/50 mb-8 flex flex-col gap-4">
+                            
+                            <div className="flex items-center justify-between">
+                                <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Add a constructive comment..." className="flex-1 bg-white/50 border border-slate-200 rounded-xl px-4 py-3 text-sm md:text-base font-medium focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50" disabled={submitting} />
+                                <div className="relative">
+                                    <label className="cursor-pointer bg-white/50 border border-slate-200 rounded-xl px-3 py-2 hover:bg-blue-50 hover:border-blue-400 transition-all flex items-center justify-center" title="Attach files (Max 50MB)">
+                                        <i className="ph ph-paperclip text-blue-600"></i>
+                                        <input type="file" multiple onChange={handleFileChange} accept="image/*,.pdf" className="hidden" />
+                                        {files.length > 0 && <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-[10px] md:text-xs font-bold px-1.5 rounded-full">{files.length}</span>}
+                                    </label>
+                                </div>
+                            </div>
+                            <button className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm md:text-base hover:bg-blue-700 transition-colors disabled:opacity-50 self-end md:self-end md:py-3 md:px-8">{submitting ? '...' : 'Send'}</button>
+                        </form>
+                        
+                        {convertingFiles && (
+                            <div className="mb-4 flex items-center justify-center p-4 md:p-6 bg-blue-50 rounded-2xl text-blue-700 text-sm md:text-base font-bold animate-pulse">
+                                <div className="spinner spinner-dark mr-2 border-blue-600 border-l-slate-200"></div> Converting files...
+                            </div>
+                        )}
+                        
+                        <div className="space-y-4 md:space-y-5">
+                            {currentPost.comments?.map(c => (
+                                <div key={c.id} className="glass-card p-6 md:p-8 rounded-2xl shadow-sm border border-white/50 text-sm md:text-base relative">
+                                    <div className="flex justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm md:text-xs font-bold"><i className="ph ph-user"></i></div>
+                                            <span className="font-bold text-slate-700 text-base md:text-lg">{c.authorAlias}</span>
+                                        </div>
+                                        <span className="text-slate-400 font-medium text-xs md:text-sm">{new Date(c.timestamp).toLocaleDateString()}</span>
+                                    </div>
+                                    <p className="text-slate-600 leading-relaxed font-medium text-sm md:text-base">{c.content}</p>
+                                    
+                                    {c.attachments && c.attachments.length > 0 && (
+                                        <div className="mt-4 flex flex-wrap gap-3 md:gap-4">
+                                            {c.attachments.map((file, fIdx) => (
+                                                <div key={fIdx} className="flex items-center bg-white/50 border border-slate-200 rounded-xl px-3 py-2 text-xs md:text-sm hover:bg-white transition-colors">
+                                                    <a href={file.base64} download={file.name} className="flex items-center gap-2 text-blue-600 font-bold hover:underline">
+                                                        <i className={`ph ${file.type.includes('pdf') ? 'ph-file-pdf' : 'ph-image'}`}></i> {file.name}
+                                                    </a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('landing');
+            const [selectedPost, setSelectedPost] = useState(null);
+            const [refreshFeed, setRefreshFeed] = useState(0);
+            const [toast, setToast] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
+
+            const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+            const triggerRefresh = () => setRefreshFeed(prev => prev + 1);
+
+            // CRITICAL: Use onAuthStateChanged listener for reactive user state
+            useEffect(() => {
+                const unsubscribe = AuthService.onAuthStateChanged((authUser) => {
+                    setUser(authUser);
+                    setAuthLoading(false);
+                    if (authUser) {
+                        setView('feed');
+                    } else {
+                        setView('landing');
+                    }
+                });
+                
+                return () => {
+                    if (unsubscribe) unsubscribe();
+                };
+            }, []);
+
+            // FIX: Provide context globally so Navbar never gets undefined
+            return (
+                <AppContext.Provider value={{ user, showToast }}>
+                    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+                        <Navbar setView={setView} currentView={view} />
+                        <main className="flex-1 px-4 md:px-6 mt-8 pb-20 overflow-y-auto">
+                            {authLoading ? (
+                                <div className="flex items-center justify-center min-h-screen">
+                                    <div className="spinner"></div>
+                                </div>
+                            ) : (
+                                <>
+                                    {view === 'landing' && <LandingPage onGoToLogin={() => setView('login')} onGoToSignup={() => setView('signup')} />}
+                                    {view === 'login' || view === 'signup' ? <AuthScreen initialMode={view} onSuccess={() => { /* onAuthStateChanged will handle user state */ }} onBack={() => setView('landing')} onShowToast={showToast} /> : <div className="hidden"></div>}
+                                </>
+                            )}
+                            {view === 'feed' && user && <Feed setView={setView} setSelectedPost={setSelectedPost} refreshFeed={refreshFeed} />}
+                            {view === 'create' && user && <CreatePost setView={setView} />}
+                            {view === 'detail' && user && selectedPost && <PostDetail post={selectedPost} onBack={() => { setSelectedPost(null); setView('feed'); triggerRefresh(); }} onUpdate={triggerRefresh} />}
+                        </main>
+                        {toast && <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900/95 backdrop-blur-md text-white px-8 py-4 rounded-3xl shadow-2xl z-50 flex items-center gap-4 fade-in-up border border-slate-800">
+                            <i className="ph ph-check-circle text-green-400 text-xl md:text-2xl"></i> 
+                            <span className="font-bold text-sm md:text-base">{toast}</span>
+                        </div>}
+                    </div>
+                </AppContext.Provider>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
